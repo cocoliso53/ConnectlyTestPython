@@ -3,8 +3,8 @@
 ## Instructions
 
 ### Online
-You can access the deployed version by visiting this [link](https://orca-app-sx77z.ondigitalocean.app/)
-And chet with the [bot](https://t.me/ConnectlyTestBot)
+You can access the frontend of the deployed version by visiting this [link](https://orca-app-sx77z.ondigitalocean.app/).
+And chat with the [bot](https://t.me/ConnectlyTestBot) to create new data.
 
 ### Local development
 - Create te Docker image by running `docker build -t connectly-test .` on your terminal (you can change `connectly-test` for what ever name you prefer)
