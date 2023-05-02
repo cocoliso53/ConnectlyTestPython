@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Connectly test</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+          font-family: Arial, sans-serif;
+          margin: 0;
+          padding: 20px;
+        }
+    
+        .wrapper {
+          max-width: 1200px;
+          margin: 0 auto;
+        }
+    
+        h1 {
+          font-size: 24px;
+          margin-bottom: 20px;
+        }
+    
+        table {
+          border-collapse: collapse;
+          width: 100%;
+          margin-bottom: 20px;
+        }
+    
+        th, td {
+          border: 1px solid #ccc;
+          text-align: left;
+          padding: 8px;
+        }
+    
+        th {
+          background-color: #f2f2f2;
+          font-weight: bold;
+        }
+    
+        tr:nth-child(even) {
+          background-color: #f2f2f2;
+        }
+    
+        #filter-form {
+          display: flex;
+          flex-wrap: wrap;
+          margin-bottom: 20px;
+        }
+    
+        .form-group {
+          display: flex;
+          flex-direction: column;
+          margin-right: 20px;
+        }
+    
+        label {
+          margin-bottom: 5px;
+        }
+    
+        input[type="text"] {
+          padding: 5px;
+          width: 200px;
+          box-sizing: border-box;
+          margin-bottom: 10px;
+        }
+    
+        button {
+          background-color: #4CAF50;
+          border: none;
+          color: white;
+          padding: 10px 20px;
+          text-align: center;
+          text-decoration: none;
+          display: inline-block;
+          font-size: 16px;
+          margin: 4px 2px;
+          cursor: pointer;
+        }
+    
+        #chart-container {
+          width: 100%;
+          height: 400px;
+        }
+
+        h1 {
+            font-size: 32px;
+            margin-bottom: 20px;
+            text-align: center;
+            color: #444;
+        }
+        
+        p {
+            font-size: 18px;
+            text-align: center;
+            color: #666;
+            line-height: 1.5;
+            margin-bottom: 20px;
+        }
+      </style>
+  </head>
+  <body>
+    <div class="wrapper">
+    <h1>Welcome to the Telegram Bot Frontend</h1>
+    <p>You can use the filters to select relevant information, or click on Order ID, Product ID, User Id or Rating to sort the table</p>
+    <div id="filters">
+        <label for="product_id">Product ID:</label>
+        <input type="text" id="product_id" name="product_id">
+        
+        <label for="user_id">User ID:</label>
+        <input type="text" id="user_id" name="user_id">
+        
+        <label for="rating">Rating:</label>
+        <input type="text" id="rating" name="rating">
+        
+        <button id="applyFilters">Apply Filters</button>
+    </div>
+
+    <table id="ordersTable">
+        <thead>
+            <tr>
+                <th onclick="sortTable(0)">Order ID</th>
+                <th onclick="sortTable(1)">Product ID</th>
+                <th onclick="sortTable(2)">User ID</th>
+                <th onclick="sortTable(3)">Rating</th>
+                <th>Feedback</th>
+                <th>Created Timestamp</th>
+                <th>Rating Timestamp</th>
+                <th>Feedback Timestamp</th>
+            </tr>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
+
+    <div>
+        <canvas id="ordersChart"></canvas>
+    </div>
+
+
+    <script>
+        async function fetchOrders(productId = '', userId = '', rating = '') {
+            const response = await fetch('/api/orders');
+            const orders = await response.json();
+            const tableBody = document.querySelector('#ordersTable tbody');
+
+            tableBody.innerHTML = '';
+
+
+
+            orders.forEach(order => {
+                if ((productId === '' || order.product_id === productId) &&
+                (userId === '' || order.user_id === userId) &&
+                (rating === '' || (order.rating !== null && order.rating.toString() === rating))) {
+                    const row = document.createElement('tr');
+                    // Add cells to the row in the correct order
+                    row.appendChild(createCell(order.order_id));
+                    row.appendChild(createCell(order.product_id));
+                    row.appendChild(createCell(order.user_id));
+                    row.appendChild(createCell(order.rating));
+                    row.appendChild(createCell(order.feedback));
+                    row.appendChild(createCell(order.created_ts));
+                    row.appendChild(createCell(order.rating_ts));
+                    row.appendChild(createCell(order.feedback_ts));
+
+                tableBody.appendChild(row);
+                }
+            });
+        }
+
+        function createCell(value) {
+            const cell = document.createElement('td');
+            cell.textContent = value || '-';
+            return cell;
+        }
+
+        function applyFilters() {
+            const productId = document.getElementById('product_id').value;
+            const userId = document.getElementById('user_id').value;
+            const rating = document.getElementById('rating').value;
+
+            fetchOrders(productId, userId, rating);
+            renderChart(productId, userId, rating);
+        }
+
+        document.getElementById('applyFilters').addEventListener('click', (event) => {
+            event.preventDefault();
+            applyFilters();
+        });
+
+        async function renderChart(productId = '', userId = '', rating = '') {
+            const response = await fetch('/api/orders');
+            const allOrders = await response.json()
+            
+            const orders = allOrders.filter(order => {
+                if (productId !== '' && order.product_id !== productId) {
+                    return false;
+                }
+                if (userId !== '' && order.user_id !== userId) {
+                    return false;
+                }
+                if (rating !== '' && order.rating !== parseInt(rating)) {
+                    return false;
+                }
+                return true;
+            });
+
+            
+            let numOrders = 0;
+            let numRatings = 0;
+            let numFeedbacks = 0;
+            let totalRating = 0;
+            let totalTimeRating = 0;
+            let totalTimeFeedback = 0;
+            
+            orders.forEach(order => {
+                numOrders++;
+                 if (order.rating !== null) {
+                    numRatings++;
+                    totalRating += order.rating;
+                    totalTimeRating += (new Date(order.rating_ts) - new Date(order.created_ts));
+                }
+                
+                if (order.feedback !== null) {
+                    numFeedbacks++;
+                    totalTimeFeedback += (new Date(order.feedback_ts) - new Date(order.rating_ts));
+                }
+            });
+
+            const avgRating = totalRating / numRatings;
+            const avgTimeRating = totalTimeRating / (numRatings * 60000);
+            const avgTimeFeedback = totalTimeFeedback / (numFeedbacks * 60000);
+            
+            const chartData = [
+                numOrders,
+                numRatings,
+                numFeedbacks,
+                avgRating,
+                avgTimeRating,
+                avgTimeFeedback
+            ];
+            
+            
+            const ctx = document.getElementById('ordersChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: [
+                        'Number of Orders',
+                        'Number of Ratings',
+                        'Number of Feedbacks',
+                        'Average Rating',
+                        'Avg Time Order to Raiting',
+                        'Avg Time Rating to Feedback'
+                    ],
+                    datasets: [{
+                        data: chartData,
+                        backgroundColor: [
+                            'rgba(75, 192, 192, 0.2)',
+                            'rgba(255, 206, 86, 0.2)',
+                            'rgba(255, 99, 132, 0.2)',
+                            'rgba(153, 102, 255, 0.2)',
+                            'rgba(54, 162, 235, 0.2)',
+                            'rgba(255, 159, 64, 0.2)'
+                        ],
+                        
+                        borderColor: [
+                            'rgba(75, 192, 192, 1)',
+                            'rgba(255, 206, 86, 1)',
+                            'rgba(255, 99, 132, 1)',
+                            'rgba(153, 102, 255, 1)',
+                            'rgba(54, 162, 235, 1)',
+                            'rgba(255, 159, 64, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function sortTable(n) {
+            const table = document.getElementById("ordersTable");
+            let rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
+
+            switching = true;
+            dir = "asc";
+
+            while (switching) {
+                switching = false;
+                rows = table.rows;
+
+                for (i = 1; i < (rows.length - 1); i++) {
+                    shouldSwitch = false;
+                    x = rows[i].getElementsByTagName("TD")[n];
+                    y = rows[i + 1].getElementsByTagName("TD")[n];
+
+                    if (dir == "asc") {
+                        if (x.innerHTML.toLowerCase() > y.innerHTML.toLowerCase()) {
+                            shouldSwitch = true;
+                            break;
+                        }
+                    } else if (dir == "desc") {
+                        if (x.innerHTML.toLowerCase() < y.innerHTML.toLowerCase()) {
+                            shouldSwitch = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (shouldSwitch) {
+                    rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+                    switching = true;
+                    switchcount++;
+                } else {
+                    if (switchcount === 0 && dir == "asc") {
+                        dir = "desc";
+                        switching = true;
+                    }
+                }
+            }
+        }
+
+        fetchOrders();
+        renderChart();
+    </script>
+    </div>
+  </body>
+</html>
